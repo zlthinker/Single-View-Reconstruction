@@ -1,4 +1,5 @@
-#include <iostream>  
+﻿#include <iostream>  
+#include <fstream>  
 #include <stdio.h>
 #include <opencv2/features2d/features2d.hpp>  
 #include <opencv2/calib3d/calib3d.hpp>  
@@ -172,4 +173,43 @@ CvPoint3D32f calc_vanishing_point(std::vector<CvPoint> points, float w)
 double distance2d(cv::Vec3d v1, cv::Vec3d v2)
 {
 	return std::sqrt(pow(v1[0] - v2[0], 2) + pow(v1[1] - v2[1], 2));
+}
+
+int create_crml_file(std::vector<cv::Vec3d> points, std::ofstream &out, std::string s[]){
+
+	if (out.is_open())
+	{
+		for (unsigned int i = 0; i != points.size(); i++){
+			if (i % 4 == 0){
+				out << "#VRML V1.0 ascii" << std::endl;
+				out << "#TargetJr VRML_IO output" << std::endl;
+				out << "Separator { \nShapeHints { \n\tvertexOrdering  CLOCKWISE \n\tshapeType \tSOLID \n}" << std::endl;
+				out << "Separator {\n\tCoordinate3 { point [" << std::endl;
+			}
+
+			out << "\t\t" << points[i][0] << "\t" << points[i][1] << "\t" << points[i][2] << "\n";
+
+			if (i % 4 == 3){
+				out << "\t]}" << std::endl;
+				out << "\tTexture2 { filename " << " \" " << s[i / 4] << " \" }" << "\n";
+				out << "\tTextureCoordinate2 { point [" << "\n";
+				out << "\t5.87859e-16 0," << "\n";
+				out << "\t0 1," << "\n";
+				out << "\t1 1," << "\n";
+				out << "\t1 2.22045e-15," << "\n";
+				out << "\t]}" << "\n";
+				out << "\tIndexedFaceSet { coordIndex [" << "\n";
+				out << "\t0, 1, 2, 3, -1," << "\n";
+				out << "\t]}" << "\n";
+				out << "}" << "\n";
+				out << "}" << "\n";
+
+				out << "# End TargetJr VRML_IO output" << "\n";
+			}
+		}
+		out.close();
+		return 0;
+	}
+	else
+		return -1;
 }
