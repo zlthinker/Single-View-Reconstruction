@@ -5,6 +5,12 @@
 #include <opencv2/core/core.hpp>  
 #include <opencv2/highgui/highgui.hpp> 
 
+#include <vector>
+#include "eigen.h"
+
+#include <cv.h>
+#include <highgui.h>
+
 using namespace std;
 using namespace cv;
 
@@ -17,7 +23,7 @@ double cal3dZ(cv::Vec3d& v_x, cv::Vec3d& v_y, cv::Vec3d& v_z, cv::Vec3d& t, cv::
 	return ret;
 }
 
-void cal3dXY(cv::Vec3d& b, cv::Mat homo, double& x, double& y)
+void cal3dXY(cv::Vec3d& b, cv::Mat& homo, double& x, double& y)
 {
 	Mat img_pt = Mat::ones(3, 1, CV_64F);
 	img_pt.at<double>(0, 0) = b[0];
@@ -27,9 +33,31 @@ void cal3dXY(cv::Vec3d& b, cv::Mat homo, double& x, double& y)
 	y = dst_pt.at<double>(1, 0) / dst_pt.at<double>(2, 0);
 }
 
+cv::Vec3d cal3dXYZ(cv::Vec3d& v_x, cv::Vec3d& v_y, cv::Vec3d& v_z, cv::Vec3d& t, cv::Vec3d& b, cv::Vec3d& o, double scale, cv::Mat& homo)
+{
+	double x, y, z;
+	z = cal3dZ(v_x, v_y, v_z, t, b, o, scale);
+	cal3dXY(b, homo, x, y);
+	return cv::Vec3d(x, y, z);
+}
+
 
 //inverse warping
 cv::Mat getHomo(std::vector<cv::Vec2d>& src, std::vector<cv::Vec2d>& dst)
+{
+	std::vector<cv::Point2d> srcPoints, dstPoints;
+	for (int i = 0; i < src.size(); i++)
+	{
+		cv::Point2d src_pnt(src[i][0], src[i][1]);
+		cv::Point2d dst_pnt(dst[i][0], dst[i][1]);
+		srcPoints.push_back(src_pnt);
+		dstPoints.push_back(dst_pnt);
+	}
+	cv::Mat homo = cv::findHomography(srcPoints, dstPoints);
+	return homo;
+}
+
+cv::Mat getHomo(std::vector<cv::Vec3d>& src, std::vector<cv::Vec3d>& dst)
 {
 	std::vector<cv::Point2d> srcPoints, dstPoints;
 	for (int i = 0; i < src.size(); i++)
@@ -57,7 +85,7 @@ void getTexture(cv::Mat& texture, cv::Mat& src, cv::Mat& homo)
 			Mat src_mat = homo * dst_mat;
 			int src_w = int(src_mat.at<double>(0, 0) / src_mat.at<double>(2, 0));
 			int src_h = int(src_mat.at<double>(1, 0) / src_mat.at<double>(2, 0));
-			std::cout << "dest: " << w << ", " << h << ", source: " << src_w << ", " << src_h << "\n";
+			//std::cout << "dest: " << w << ", " << h << ", source: " << src_w << ", " << src_h << "\n";
 			Vec3b color;
 			if (src_w < src.cols && src_w >= 0 && src_h < src.rows && src_h >= 0)
 			{
@@ -76,9 +104,72 @@ static void onMouse(int event, int x, int y, int, void*){
 	if (event != CV_EVENT_LBUTTONDOWN)
 		return;
 
-	cv::Point center(x, y);
-	cv::circle(myimage, center, 2, cv::Scalar(0, 0, 255), CV_FILLED);
-	cv::imshow("src", myimage);
-
 	std::cout << "click on (" << x << ", " << y << ")\n";
+}
+
+void add_point(float **m, CvPoint3D32f * p)
+{
+	m[0][0] += p->x * p->x;
+	m[0][1] += p->x * p->y;
+	m[0][2] += p->x * p->z;
+
+	m[1][0] += p->x * p->y;
+	m[1][1] += p->y * p->y;
+	m[1][2] += p->y * p->z;
+
+	m[2][0] += p->x * p->z;
+	m[2][1] += p->y * p->z;
+	m[2][2] += p->z * p->z;
+}
+
+CvPoint3D32f calc_vanishing_point(std::vector<CvPoint> points, float w)
+{
+	int num_lines = points.size() / 2;
+	//compute lines
+	CvPoint3D32f* lines = (CvPoint3D32f *)malloc(num_lines*sizeof(CvPoint3D32f));
+	for (std::vector<int>::size_type i = 0; i != num_lines; ++i)
+	{
+		lines[i].x = points[2 * i].y / w - points[2 * i + 1].y / w;
+		lines[i].y = points[2 * i + 1].x / w - points[2 * i].x / w;
+		lines[i].z = (points[2 * i].x * points[2 * i + 1].y - points[2 * i + 1].x * points[2 * i].y) / (w * w);
+	}
+
+
+	//compute m
+	float *eig_val = (float *)malloc(3 * sizeof(float));
+	float **eig_vec = (float**)malloc(3 * sizeof(float*));
+	float **m = (float**)malloc(3 * sizeof(float*));
+	for (int i = 0; i<3; i++) {
+		m[i] = (float *)malloc(3 * sizeof(float));
+		eig_vec[i] = (float *)malloc(3 * sizeof(float));
+	}
+	for (int i = 0; i<3; i++) {
+		for (int j = 0; j < 3; j++)
+			m[i][j] = 0.0;
+	}
+
+
+	for (std::vector<int>::size_type i = 0; i != num_lines; ++i)
+	{
+		add_point(m, &lines[i]);
+	}
+
+	//compute Vertice
+	eig_sys(3, m, eig_vec, eig_val);
+
+	float min_eigen = 9999999.9;
+	int index = -1;
+	for (int i = 0; i < 3; i++)
+		if (eig_val[i] < min_eigen)
+		{
+			min_eigen = eig_val[i];
+			index = i;
+		}
+	float scale = w / eig_vec[index][2];
+	return cvPoint3D32f(eig_vec[index][0] * scale, eig_vec[index][1] * scale, eig_vec[index][2] * scale);
+}
+
+double distance2d(cv::Vec3d v1, cv::Vec3d v2)
+{
+	return std::sqrt(pow(v1[0] - v2[0], 2) + pow(v1[1] - v2[1], 2));
 }
