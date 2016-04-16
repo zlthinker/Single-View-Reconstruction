@@ -8,29 +8,25 @@
 using namespace std;
 using namespace cv;
 
+cv::Mat myimage;
+
 double cal3dZ(cv::Vec3d& v_x, cv::Vec3d& v_y, cv::Vec3d& v_z, cv::Vec3d& t, cv::Vec3d& b, cv::Vec3d& o, double scale)
 {
 	cv::Vec3d lxy = v_x.cross(v_y);
-	double ret = -o.dot(lxy) * cv::norm(b.cross(t)) / (b.dot(lxy) * cv::norm(v_z.cross(t)) * scale);
+	double ret = o.dot(lxy) * cv::norm(b.cross(t)) / (b.dot(lxy) * cv::norm(v_z.cross(t))) * scale;
 	return ret;
 }
 
-void cal3dX(cv::Vec3d& b, cv::Mat homo, double& x, double& y)
+void cal3dXY(cv::Vec3d& b, cv::Mat homo, double& x, double& y)
 {
 	Mat img_pt = Mat::ones(3, 1, CV_64F);
 	img_pt.at<double>(0, 0) = b[0];
 	img_pt.at<double>(1, 0) = b[1];
 	Mat dst_pt = homo * img_pt;
-	x = int(dst_pt.at<double>(0, 0) / dst_pt.at<double>(2, 0));
-	y = int(dst_pt.at<double>(1, 0) / dst_pt.at<double>(2, 0));
+	x = dst_pt.at<double>(0, 0) / dst_pt.at<double>(2, 0);
+	y = dst_pt.at<double>(1, 0) / dst_pt.at<double>(2, 0);
 }
 
-double cal3dY(cv::Vec3d& v_x, cv::Vec3d& v_y, cv::Vec3d& v_z, cv::Vec3d& t, cv::Vec3d& b, cv::Vec3d& o, double scale)
-{
-	cv::Vec3d lxz = v_x.cross(v_z);
-	double ret = -o.dot(lxz) * cv::norm(b.cross(t)) / (b.dot(lxz) * cv::norm(v_y.cross(t)) * scale);
-	return ret;
-}
 
 //inverse warping
 cv::Mat getHomo(std::vector<cv::Vec2d>& src, std::vector<cv::Vec2d>& dst)
@@ -79,6 +75,10 @@ void getTexture(cv::Mat& texture, cv::Mat& src, cv::Mat& homo)
 static void onMouse(int event, int x, int y, int, void*){
 	if (event != CV_EVENT_LBUTTONDOWN)
 		return;
+
+	cv::Point center(x, y);
+	cv::circle(myimage, center, 2, cv::Scalar(0, 0, 255), CV_FILLED);
+	cv::imshow("src", myimage);
 
 	std::cout << "click on (" << x << ", " << y << ")\n";
 }
