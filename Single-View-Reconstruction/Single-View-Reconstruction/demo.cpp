@@ -1,6 +1,6 @@
 #include "svm.h"
 
-int main()
+int demo()
 {
 	cv::Mat src = cv::imread("box.bmp");
 	std::vector<CvPoint> point_vector;

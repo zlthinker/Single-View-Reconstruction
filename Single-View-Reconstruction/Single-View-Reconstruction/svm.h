@@ -175,11 +175,16 @@ double distance2d(cv::Vec3d v1, cv::Vec3d v2)
 	return std::sqrt(pow(v1[0] - v2[0], 2) + pow(v1[1] - v2[1], 2));
 }
 
-int create_crml_file(std::vector<cv::Vec3d> points, std::ofstream &out, std::string s[]){
+double distance3d(cv::Vec3d v1, cv::Vec3d v2)
+{
+	return std::sqrt(pow(v1[0] - v2[0], 2) + pow(v1[1] - v2[1], 2) + pow(v1[2] - v2[2], 2));
+}
+
+int create_crml_file(std::vector<cv::Vec3d>& points, std::ofstream &out, std::string s[]){
 
 	if (out.is_open())
 	{
-		for (unsigned int i = 0; i != points.size(); i++){
+		for (unsigned int i = 0; i < points.size(); i++){
 			if (i % 4 == 0){
 				out << "#VRML V1.0 ascii" << std::endl;
 				out << "#TargetJr VRML_IO output" << std::endl;
@@ -204,10 +209,9 @@ int create_crml_file(std::vector<cv::Vec3d> points, std::ofstream &out, std::str
 				out << "}" << "\n";
 				out << "}" << "\n";
 
-				out << "# End TargetJr VRML_IO output" << "\n";
+				out << "# End TargetJr VRML_IO output" << "\n\n";
 			}
 		}
-		out.close();
 		return 0;
 	}
 	else
